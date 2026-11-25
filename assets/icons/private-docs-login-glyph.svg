@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 8 88 112" role="img" aria-label="Private Docs Login">
+  <title>Private Docs Login</title>
+  <!-- A document with a folded corner. The keyhole is cut through, so it shows whatever is behind. -->
+  <path fill="#127266" fill-rule="evenodd" d="M34 12H78L104 38V104A8 8 0 0 1 96 112H34A8 8 0 0 1 26 104V20A8 8 0 0 1 34 12ZM57.5 70.5A11.5 11.5 0 1 1 70.5 70.5L74 94H54Z"/>
+  <path fill="#5EEAD4" d="M78 12V30A8 8 0 0 0 86 38H104Z"/>
+</svg>

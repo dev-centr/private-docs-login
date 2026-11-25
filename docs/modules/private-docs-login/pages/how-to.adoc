@@ -230,3 +230,15 @@ This issuer does not gate an arbitrary web application.
 
 Another runtime can sit in front of this protocol later.
 This repository does not ship that adapter.
+
+[[pages]]
+== Pages the issuer serves
+
+Readers see a few HTML pages: the acceptance page before GitHub or GitLab, the forge chooser, the page GitHub opens after an install (`/github/setup`), and the pages that explain why a sign-in stopped.
+They share one layout and one stylesheet, follow the system light or dark setting, and say what happened and what to do next.
+
+* The stylesheet, the Space Grotesk font (SIL Open Font License 1.1, Latin subset, about 22 KB), and the logo are served by the issuer itself under `/assets/`, with content-hashed names. No font or stylesheet loads from another host.
+* Every page carries a Content-Security-Policy with no inline script or style. `form-action` lists this issuer and the configured GitHub and GitLab origins, because the acceptance form is redirected there.
+* The setup page shows the installation id GitHub sends, only when it is a number, and the Cloudflare Access values for this issuer. It shows no client id or secret.
+* `npm run preview` starts a local preview with a stand-in forge, so every page can be opened without a GitHub App. The pages are listed at the top of `scripts/preview.mjs`.
+* After changing anything in `assets/`, run `npm run assets` to rebuild `src/assets.generated.mjs`. The tests fail when it is out of date.

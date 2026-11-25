@@ -20,6 +20,15 @@ endif::[]
 
 == 2026-11-25
 
+=== Designed sign-in pages
+
+* Every HTML page the issuer serves (acceptance, chooser, `/github/setup`, and the stop pages, including no verified email) uses one layout and stylesheet with light and dark themes, a responsive column, and copy that says what happened and what to do next.
+* The issuer serves its own assets under `/assets/` from both hosts: Space Grotesk (OFL 1.1, Latin subset), the stylesheet, and the Private Docs Login mark, which is also the favicon. Nothing loads from a font CDN.
+* Pages carry a strict Content-Security-Policy (no inline script or style), `Referrer-Policy: no-referrer`, and `X-Content-Type-Options: nosniff`. The GitHub manifest page no longer uses an inline script.
+* `/github/setup` shows the installation id and setup action GitHub sends (validated), and the Cloudflare Access values for this issuer.
+* `npm run preview` opens every page locally with a stand-in forge. Version 0.3.0.
+* Detail: xref:changelog-details/2026-11-25 - designed-pages.adoc[Designed sign-in pages].
+
 === Token endpoint accepts HTTP Basic
 
 * `/token` accepts `client_secret_basic` as well as `client_secret_post`. Discovery lists both. The Basic credentials are decoded as RFC 6749 section 2.3.1 says (form-urlencoded, then base64).

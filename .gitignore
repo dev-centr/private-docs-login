@@ -30,3 +30,7 @@
 !deploy/cloudflare/migrations/
 !deploy/cloudflare/migrations/*.sql
 !deploy/cloudflare/secrets.mjs
+!assets/
+!assets/**
+!scripts/
+!scripts/**

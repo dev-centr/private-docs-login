@@ -1,7 +1,8 @@
 import { createServer } from "node:http"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { githubManifest } from "./github.mjs"
-import { escapeHtml } from "./html.mjs"
+import { escapeHtml, page } from "./html.mjs"
+import { assetResponse } from "./assets.mjs"
 
 // Checks the config before anything is sent to GitHub, and returns the URLs the app will be created with.
 export function manifestPlan({ webBase, owner, issuer, setupOrigin }) {
@@ -31,26 +32,18 @@ export function manifestAction(webBase, owner) {
 
 export function manifestForm({ webBase, owner, manifest }) {
   const action = manifestAction(webBase, owner)
-  const json = JSON.stringify(JSON.stringify(manifest)).replace(/</g, "\\u003c")
-  return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Create Private Docs Login</title></head>
-<body>
-<main>
-<h1>Create the GitHub App</h1>
-<p>Private Docs Login is one GitHub App. This page sends GitHub the manifest. You approve it in the next screen. The app is owned by ${escapeHtml(owner)}.</p>
-<p>GitHub's install dialog shows this description, and nothing else from this repository: ${escapeHtml(manifest.description || "")}</p>
-<p>Leave this window open. GitHub will return here with a code, and the command will write credentials into a gitignored folder.</p>
-<form method="post" action="${escapeHtml(action)}">
-<input type="hidden" name="manifest" id="manifest">
-<button type="submit">Continue to GitHub</button>
-</form>
-<script>
-document.getElementById("manifest").value = ${json}
-</script>
-</main>
-</body>
-</html>`
+  // The manifest travels as an escaped attribute value, so the page needs no script.
+  return page({
+    title: "Create the GitHub App",
+    eyebrow: "Operator setup",
+    lead: `Private Docs Login is one GitHub App. This page sends GitHub the manifest, and you approve it on the next screen. The app is owned by ${escapeHtml(owner)}.`,
+    body: `<p>GitHub's install dialog shows this description, and nothing else from this repository: ${escapeHtml(manifest.description || "")}</p>
+<p class="muted">Leave this window open. GitHub will return here with a code, and the command will write credentials into a gitignored folder.</p>
+<form class="actions" method="post" action="${escapeHtml(action)}">
+<input type="hidden" name="manifest" value="${escapeHtml(JSON.stringify(manifest))}">
+<button class="button" type="submit">Continue to GitHub</button>
+</form>`,
+  })
 }
 
 export function startManifestServer({ host, port, webBase, owner, issuer, fetchImpl, onCredentials }) {
@@ -58,6 +51,14 @@ export function startManifestServer({ host, port, webBase, owner, issuer, fetchI
   const { manifest } = manifestPlan({ webBase, owner, issuer, setupOrigin: origin })
   const server = createServer(async (req, res) => {
     const url = new URL(req.url || "/", origin)
+    const asset = req.method === "GET" ? assetResponse(url.pathname) : null
+    if (asset) {
+      const headers = {}
+      asset.headers.forEach((value, key) => { headers[key] = value })
+      res.writeHead(asset.status, headers)
+      res.end(asset.body ? Buffer.from(await asset.arrayBuffer()) : undefined)
+      return
+    }
     if (req.method === "GET" && url.pathname === "/") {
       const html = manifestForm({ webBase, owner, manifest })
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" })

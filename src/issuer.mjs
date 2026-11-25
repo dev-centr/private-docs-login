@@ -1,5 +1,6 @@
 import { hostOf, parseBasicClient, pkceS256, randomId, secretsEqual, signJwt } from "./codec.mjs"
-import { badRedirectPage, chooserPage, connectAcceptancePage, forgeErrorPage, installSetupPage, noVerifiedEmailPage, refusalPage } from "./html.mjs"
+import { badRedirectPage, chooserPage, connectAcceptancePage, forgeErrorPage, installSetupPage, noVerifiedEmailPage, pageCsp, refusalPage } from "./html.mjs"
+import { assetResponse } from "./assets.mjs"
 import { memoryStore } from "./store.mjs"
 
 const REQUEST_TTL = 10 * 60 * 1000
@@ -21,13 +22,37 @@ export function createIssuer(options) {
     ...((options.gitlab || [])),
   ]
 
+  // A form GET to /authorize is redirected to the forge, so form-action allows those origins too.
+  const formOrigins = [...new Set(providers.map((provider) => {
+    try { return new URL(provider.instanceUrl || `https://${provider.host}`).origin } catch { return "" }
+  }).filter(Boolean))]
+  const csp = pageCsp(formOrigins)
+
   async function handle(request) {
+    const response = await route(request)
+    if ((response.headers.get("content-type") || "").startsWith("text/html")) {
+      response.headers.set("content-security-policy", csp)
+    }
+    return response
+  }
+
+  async function route(request) {
     const url = new URL(request.url)
+    if ((request.method === "GET" || request.method === "HEAD") && (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/favicon."))) {
+      const asset = assetResponse(url.pathname, request.method)
+      if (asset) return asset
+    }
     if (request.method === "GET" && url.pathname === "/.well-known/openid-configuration") {
       return json(discovery(issuer, groupsClaim))
     }
     if (request.method === "GET" && url.pathname === "/jwks") return jwks(signingKeys)
-    if (request.method === "GET" && url.pathname === "/github/setup") return installSetupPage()
+    if (request.method === "GET" && url.pathname === "/github/setup") {
+      return installSetupPage({
+        issuer,
+        installationId: url.searchParams.get("installation_id") || "",
+        setupAction: url.searchParams.get("setup_action") || "",
+      })
+    }
     if (request.method === "GET" && url.pathname === "/authorize") return authorize(url)
     if (request.method === "GET" && (url.pathname === "/github/callback" || url.pathname === "/gitlab/callback")) {
       return callback(url)

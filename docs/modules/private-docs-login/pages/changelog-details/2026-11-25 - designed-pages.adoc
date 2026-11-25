@@ -1,0 +1,37 @@
+= 2026-11-25
+:hide-page:
+:navtree-parent: changelog.adoc
+:page-audience: Maintainers and readers tracking functional history of this component
+:page-usage-context: Changelog detail for the shared page layout, bundled assets, and page security headers
+:page-orig-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
+
+== Designed sign-in pages
+
+The issuer's pages were unstyled HTML.
+They now share `page()` in `src/html.mjs`: a header with the Private Docs Login mark, one panel with a status line, a heading, a lead sentence, and the next steps, and a footer with the how-to and support links.
+
+The stylesheet is `assets/pages.css`.
+It uses semantic tokens (`--surface-*`, `--text-*`, `--accent`, one spacing scale, two radii) and switches with `prefers-color-scheme`.
+Light mode uses DevCentr teal `#127266`; dark mode uses `#5eead4`.
+A test checks that text, muted text, links, and button labels meet WCAG AA contrast on every surface in both themes.
+
+The font is Space Grotesk, the DevCentr UI face, from `@fontsource-variable/space-grotesk` 5.3.0: one variable Latin file of about 22 KB under the SIL Open Font License 1.1 (`assets/fonts/OFL.txt`).
+Monospace text uses the platform face, so no second font ships.
+
+The logo is a document with a folded corner and a keyhole cut through it: `assets/icons/private-docs-login-glyph.svg`, `-mark.svg` (the favicon and header), and `-glyph-mono.svg`.
+
+`scripts/build-assets.mjs` turns `assets/` into `src/assets.generated.mjs`, with content-hashed paths.
+The issuer serves those bytes from memory, so the Node host and the Worker need no static-file setup.
+Asset responses are cached for a year.
+
+Every page gets a Content-Security-Policy: `default-src 'none'`, same-origin style, font, and image, `form-action` for this issuer plus the configured GitHub and GitLab origins, `frame-ancestors 'none'`, and `base-uri 'none'`.
+No page has an inline script or style.
+The GitHub manifest page used to fill its form with an inline script; the manifest is now an escaped attribute value.
+
+`/github/setup` reads `installation_id` and `setup_action`.
+The id is shown only when it is all digits, and the action only selects one of the install, update, or request texts.
+All interpolated values go through `escapeHtml`, with tests for hostile values.
+
+`scripts/preview.mjs` (`npm run preview`) runs the real issuer with a stand-in forge and a throwaway key, so every page can be opened locally.

@@ -1,6 +1,6 @@
 {
   "name": "@dev-centr/private-docs-login",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "A login provider for private documentation sites that use OpenID Connect. GitHub and GitLab org members sign in through their org's installation.",
   "license": "MPL-2.0",
@@ -23,6 +23,8 @@
   "scripts": {
     "start": "node bin/private-docs-login.mjs serve",
     "test": "node --test",
+    "preview": "node scripts/preview.mjs",
+    "assets": "node scripts/build-assets.mjs",
     "cf:check": "cd deploy/cloudflare && npx --yes wrangler@4 deploy --dry-run",
     "cf:d1:create": "cd deploy/cloudflare && npx --yes wrangler@4 d1 create private-docs-login-state",
     "cf:d1:migrate": "cd deploy/cloudflare && npx --yes wrangler@4 d1 migrations apply private-docs-login-state --remote",

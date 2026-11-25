@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Private Docs Login">
+  <title>Private Docs Login</title>
+  <rect width="128" height="128" rx="28" fill="#0B2522"/>
+  <path fill="#2DD4BF" fill-rule="evenodd" d="M40 18H78L102 42V102A8 8 0 0 1 94 110H40A8 8 0 0 1 32 102V26A8 8 0 0 1 40 18ZM58.5 70.5A10.5 10.5 0 1 1 69.5 70.5L73 92H55Z"/>
+  <path fill="#99F6E4" d="M78 18V34A8 8 0 0 0 86 42H102Z"/>
+</svg>
