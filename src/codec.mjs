@@ -52,3 +52,16 @@ export function secretsMatch(a, b) {
 export function hostOf(url) {
   return new URL(url).host
 }
+
+// Public half of a PKCS#8 RSA key as a JWK, using Web Crypto so Node and Workers agree.
+export async function publicJwkFromPem(pem, kid) {
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToBytes(pem),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    true,
+    ["sign"],
+  )
+  const full = await crypto.subtle.exportKey("jwk", key)
+  return { kty: "RSA", n: full.n, e: full.e, alg: "RS256", use: "sig", kid }
+}

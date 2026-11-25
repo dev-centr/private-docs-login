@@ -3,8 +3,8 @@ ifndef::env-github[:icons: font]
 :toclevels: 2
 :toc-title:
 :sectanchors:
-:page-last-author: name=Ryan Johnson; harness=Cursor; model=grok-4.7
-:page-last-edited: 2026-11-19
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
 
 ifdef::env-github[]
 ++++
@@ -175,6 +175,13 @@ private-docs-login serve --config config/issuer.sdl
 This window shows the process.
 The listen line is the address.
 Ctrl+C stops it.
+
+Set `PRIVATE_DOCS_LOGIN_STATE_PATH` to a SQLite file so a restart keeps sign-ins in progress (Node 22.13 or later).
+Without it, state is in memory.
+`/healthz` checks the signing key and the state store.
+
+DevCentr's issuer at `login.devcentr.org` runs on Cloudflare Workers with D1, from `deploy/cloudflare/`.
+The steps, secrets, and rotation are in link:https://docs.devcentr.org/tools/private-docs-login/deploy-cloudflare/[Deploy on Cloudflare Workers].
 
 Create this issuer's GitHub App.
 The browser approval is the remaining step:

@@ -8,9 +8,12 @@ const TOKEN_TTL = 10 * 60
 
 export function createIssuer(options) {
   const now = options.now || (() => Date.now())
-  const requests = options.requests || memoryStore(now)
-  const codes = options.codes || memoryStore(now)
-  const accessTokens = options.accessTokens || memoryStore(now)
+  const stores = options.stores || {}
+  const requests = options.requests || stores.requests || memoryStore(now)
+  const codes = options.codes || stores.codes || memoryStore(now)
+  const accessTokens = options.accessTokens || stores.accessTokens || memoryStore(now)
+  const storageLabel = stores.label || "memory"
+  const signingKeys = [options.publicJwk, ...(options.previousPublicJwks || [])].filter(Boolean)
   const issuer = options.issuer.replace(/\/$/, "")
   const groupsClaim = options.groupsClaim || "groups"
   const providers = [
@@ -23,7 +26,7 @@ export function createIssuer(options) {
     if (request.method === "GET" && url.pathname === "/.well-known/openid-configuration") {
       return json(discovery(issuer, groupsClaim))
     }
-    if (request.method === "GET" && url.pathname === "/jwks") return json({ keys: [options.publicJwk] })
+    if (request.method === "GET" && url.pathname === "/jwks") return jwks(signingKeys)
     if (request.method === "GET" && url.pathname === "/github/setup") return installSetupPage()
     if (request.method === "GET" && url.pathname === "/authorize") return authorize(url)
     if (request.method === "GET" && (url.pathname === "/github/callback" || url.pathname === "/gitlab/callback")) {
@@ -32,6 +35,7 @@ export function createIssuer(options) {
     if (request.method === "POST" && url.pathname === "/token") return token(request)
     if (request.method === "GET" && url.pathname === "/userinfo") return userinfo(request)
     if (request.method === "GET" && url.pathname === "/health") return json({ ok: true })
+    if (request.method === "GET" && url.pathname === "/healthz") return healthz()
     return json({ error: "not_found" }, 404)
   }
 
@@ -79,7 +83,7 @@ export function createIssuer(options) {
       })
     }
     const state = randomId()
-    requests.put(state, {
+    await requests.put(state, {
       clientId: client.id,
       redirectUri,
       clientState: params.get("state") || "",
@@ -98,7 +102,7 @@ export function createIssuer(options) {
 
   async function callback(url) {
     const state = url.searchParams.get("state") || ""
-    const pending = requests.take(state)
+    const pending = await requests.take(state)
     if (!pending) return json({ error: "invalid_request", error_description: "unknown or expired sign-in" }, 400)
     const provider = providers.find((item) => item.id === pending.providerId && (item.instanceUrl || "") === pending.instanceUrl)
     if (!provider) return json({ error: "invalid_request" }, 400)
@@ -125,7 +129,7 @@ export function createIssuer(options) {
     const prefix = provider.id === "github" ? "github" : "gitlab"
     const groups = names.map((name) => `${prefix}:${provider.host}:${name}`)
     const authCode = randomId()
-    codes.put(authCode, {
+    await codes.put(authCode, {
       ...pending,
       subject: `${prefix}:${provider.host}:${login.subject}`,
       username: login.username,
@@ -145,7 +149,7 @@ export function createIssuer(options) {
     if (!client || !secretsMatch(client.secret, form.get("client_secret") || "")) {
       return json({ error: "invalid_client" }, 401)
     }
-    const record = codes.take(form.get("code") || "")
+    const record = await codes.take(form.get("code") || "")
     if (!record || record.clientId !== client.id) return json({ error: "invalid_grant" }, 400)
     if (form.get("redirect_uri") !== record.redirectUri) return json({ error: "invalid_grant" }, 400)
     if (record.codeChallenge) {
@@ -168,7 +172,7 @@ export function createIssuer(options) {
     if (record.nonce) payload.nonce = record.nonce
     const idToken = await signJwt(options.privateKey, payload, options.kid)
     const accessToken = randomId()
-    accessTokens.put(accessToken, payload, TOKEN_TTL * 1000)
+    await accessTokens.put(accessToken, payload, TOKEN_TTL * 1000)
     return json({
       access_token: accessToken,
       token_type: "Bearer",
@@ -177,12 +181,11 @@ export function createIssuer(options) {
     })
   }
 
-  function userinfo(request) {
+  async function userinfo(request) {
     const header = request.headers.get("authorization") || ""
     const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7) : ""
-    const payload = accessTokens.take(token)
+    const payload = token ? await accessTokens.peek(token) : null
     if (!payload) return json({ error: "invalid_token" }, 401)
-    accessTokens.put(token, payload, TOKEN_TTL * 1000)
     return json({
       sub: payload.sub,
       preferred_username: payload.preferred_username,
@@ -191,7 +194,26 @@ export function createIssuer(options) {
     })
   }
 
+  async function healthz() {
+    // Liveness plus a storage round trip. Names no secret, key material, or client.
+    let storage = "ok"
+    try {
+      await Promise.all([requests.ping(), codes.ping(), accessTokens.ping()])
+    } catch {
+      storage = "error"
+    }
+    const ok = storage === "ok" && signingKeys.length > 0
+    return json({ ok, issuer, storage: storageLabel, state: storage, kid: options.kid || "" }, ok ? 200 : 503)
+  }
+
   return { handle }
+}
+
+function jwks(keys) {
+  return new Response(JSON.stringify({ keys }), {
+    status: 200,
+    headers: { "content-type": "application/json", "cache-control": "public, max-age=300" },
+  })
 }
 
 function findClient(clients, id) {

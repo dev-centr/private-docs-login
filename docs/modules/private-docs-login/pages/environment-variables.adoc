@@ -3,8 +3,8 @@
 :page-audience: Site operators
 :page-usage-context: Reference of environment names on the Dev-Centr docs hub
 :page-orig-author: Grok 4.7 on behalf of Ryan Johnson
-:page-last-author: name=Ryan Johnson; harness=Cursor; model=grok-4.7
-:page-last-edited: 2026-11-19
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
 
 ifndef::page-context-active[]
 [.page-context.page-context-lead]
@@ -22,6 +22,9 @@ Empty names in `.env.example` match this table.
 
 [cols="2,3,1,2,3",options="header"]
 |===
+
+The Worker host also needs the D1 binding `PRIVATE_DOCS_LOGIN_STATE`, declared in `deploy/cloudflare/wrangler.toml`.
+On the Worker, every name above is a Worker secret, not a process variable.
 | Variable | Purpose | Required | If unset | Source
 
 | `PRIVATE_DOCS_LOGIN_CONFIG`
@@ -41,6 +44,30 @@ Empty names in `.env.example` match this table.
 | Yes
 | The process refuses to start.
 | Create the file on the issuer host with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Do not commit it. Set the variable to that file's path.
+
+| `PRIVATE_DOCS_LOGIN_SIGNING_KEY`
+| The issuer's private signing key as PKCS#8 PEM text, for a host that cannot read files (the Cloudflare Worker). Named by `signing-key.pem-env`. When both are configured, this one wins.
+| On the Worker host
+| The Worker answers `503` and `/healthz` reports `not-configured`.
+| `var/signing.pem`, uploaded by `npm run cf:secrets`. Kept in Bitwarden. See xref:deploy-cloudflare.adoc[Deploy on Cloudflare Workers].
+
+| `PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS`
+| Public keys still published in `/jwks` after a signing-key rotation, as a JWKS or a list of JWKs. Named by `signing-key.previous-jwks-env`. A value with private key fields is refused.
+| No
+| `/jwks` lists the current key only.
+| The old `/jwks` body. Not secret. Remove it after the rotation window.
+
+| `PRIVATE_DOCS_LOGIN_STATE_PATH`
+| SQLite file for sign-in state on the Node host. Named by `state.sqlite-path-env`. Needs Node 22.13 or later.
+| No
+| State is in memory, and a restart drops sign-ins in progress.
+| A path on the issuer host, for example `var/state.sqlite`. Not secret.
+
+| `PRIVATE_DOCS_LOGIN_ISSUER_URL`
+| Issuer URL for `npm run healthz`.
+| No
+| `npm run healthz` checks `https://login.devcentr.org`.
+| Local shell.
 
 | `PRIVATE_DOCS_LOGIN_GITHUB_APP_ID`
 | Numeric id of the GitHub App named Private Docs Login.

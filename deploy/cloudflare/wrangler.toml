@@ -1,0 +1,29 @@
+# Private Docs Login on Cloudflare Workers. No secrets in this file.
+# Secrets: see docs/modules/private-docs-login/pages/deploy-cloudflare.adoc.
+name = "private-docs-login"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+# Account that holds the devcentr.org zone and the amdphreak Access team. Not a secret.
+account_id = "1b6eebdcb1b4ca0746c6f1690a30ce94"
+
+routes = [
+  { pattern = "login.devcentr.org", custom_domain = true }
+]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.sdl"]
+fallthrough = true
+
+# Create once with: npx wrangler@4 d1 create private-docs-login-state
+# then paste the printed database_id here.
+[[d1_databases]]
+binding = "PRIVATE_DOCS_LOGIN_STATE"
+database_name = "private-docs-login-state"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true

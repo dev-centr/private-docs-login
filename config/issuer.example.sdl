@@ -10,16 +10,25 @@ listen {
   port 4180
 }
 
+// pem-path-env names a PEM file (Node host). pem-env names PEM text instead (a Worker secret).
+// previous-jwks-env publishes the old public key for a while after a rotation.
 signing-key {
   pem-path-env "PRIVATE_DOCS_LOGIN_SIGNING_KEY_PATH"
+  previous-jwks-env "PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS"
   kid "private-docs-login-1"
+}
+
+// Sign-in state (pending requests, one-time codes, access tokens). With the variable set, the Node
+// host keeps it in that SQLite file. Unset, it is in memory and a restart drops sign-ins in progress.
+state {
+  sqlite-path-env "PRIVATE_DOCS_LOGIN_STATE_PATH"
 }
 
 // GitHub App named Private Docs Login, owned by this organization.
 github {
   web "https://github.com"
   api "https://api.github.com"
-  owner "antora-supplemental"
+  owner "dev-centr"
   slug "private-docs-login"
   app-id-env "PRIVATE_DOCS_LOGIN_GITHUB_APP_ID"
   client-id-env "PRIVATE_DOCS_LOGIN_GITHUB_CLIENT_ID"

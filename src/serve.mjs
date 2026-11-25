@@ -1,43 +1,24 @@
 import { createServer } from "node:http"
-import { createPublicKey } from "node:crypto"
-import { readFileSync } from "node:fs"
-import { createGithubForge } from "./github.mjs"
-import { createGitlabForge } from "./gitlab.mjs"
-import { createIssuer } from "./issuer.mjs"
+import { issuerFromRuntime } from "./app.mjs"
 import { loadRuntimeConfig, readConfigFile } from "./config.mjs"
-
-export function publicJwkFromPem(pem, kid) {
-  const jwk = createPublicKey(pem).export({ format: "jwk" })
-  jwk.alg = "RS256"
-  jwk.use = "sig"
-  jwk.kid = kid
-  delete jwk.key_ops
-  return jwk
-}
+import { memoryStores, sqliteStores } from "./store.mjs"
 
 export async function listenIssuer({ configPath, env, fetchImpl }) {
   const raw = readConfigFile(configPath)
   const runtime = await loadRuntimeConfig(raw, env)
-  const pemName = (raw["signing-key"] && raw["signing-key"]["pem-path-env"]) || "PRIVATE_DOCS_LOGIN_SIGNING_KEY_PATH"
-  const pem = readFileSync(env[pemName], "utf8")
-  return listenRuntime(runtime, pem, fetchImpl || globalThis.fetch)
+  return listenRuntime(runtime, fetchImpl || globalThis.fetch)
 }
 
-export async function listenRuntime(runtime, pem, fetchImpl) {
-  const github = runtime.github
-    ? createGithubForge({ ...runtime.github, fetchImpl })
-    : null
-  const gitlab = runtime.gitlab.map((instance) => createGitlabForge({ ...instance, fetchImpl }))
-  const issuer = createIssuer({
-    issuer: runtime.issuer,
-    groupsClaim: runtime.groupsClaim,
-    clients: runtime.clients,
-    privateKey: runtime.privateKey,
-    publicJwk: publicJwkFromPem(pem, runtime.kid),
-    kid: runtime.kid,
-    github,
-    gitlab,
-  })
+// State lives in SQLite when PRIVATE_DOCS_LOGIN_STATE_PATH (or state.sqlite-path-env) names a file.
+// Without it, state is in memory and a restart drops sign-ins that are in progress.
+export async function stateForRuntime(runtime) {
+  if (runtime.statePath) return sqliteStores(runtime.statePath)
+  return memoryStores()
+}
+
+export async function listenRuntime(runtime, fetchImpl, stores) {
+  const state = stores || await stateForRuntime(runtime)
+  const issuer = issuerFromRuntime(runtime, { fetchImpl, stores: state })
   const server = createServer(async (req, res) => {
     try {
       const host = req.headers.host || `${runtime.listenHost}:${runtime.listenPort}`
@@ -58,8 +39,9 @@ export async function listenRuntime(runtime, pem, fetchImpl) {
       console.error(error.message)
     }
   })
+  server.on("close", () => { if (state.close) state.close() })
   await new Promise((resolve) => server.listen(runtime.listenPort, runtime.listenHost, resolve))
-  return { server, runtime }
+  return { server, runtime, storage: state.label }
 }
 
 function readBody(req) {

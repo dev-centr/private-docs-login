@@ -4,8 +4,8 @@
 :page-audience: Maintainers and readers tracking functional history of this component
 :page-usage-context: Timeline index on the Dev-Centr docs hub; detail pages under changelog-details inherit this audience
 :page-orig-author: Ryan Johnson
-:page-last-author: name=Ryan Johnson; harness=Cursor; model=grok-4.7
-:page-last-edited: 2026-11-19
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
 
 ifndef::page-context-active[]
 [.page-context.page-context-lead]
@@ -17,6 +17,19 @@ Latest contributor:: {page-last-author}
 Last updated:: {page-last-edited}
 ****
 endif::[]
+
+== 2026-11-25
+
+=== Persistent sign-in state and the Worker host
+
+* Sign-in state (pending requests, one-time codes, access tokens) goes through one async storage interface. Tests use memory. The Node host keeps it in SQLite when `PRIVATE_DOCS_LOGIN_STATE_PATH` is set. The Cloudflare Worker host keeps it in D1. A code is deleted and returned in one statement, so it cannot be redeemed twice. Expired rows are swept on the next write.
+* DevCentr's issuer is `https://login.devcentr.org` on Cloudflare Workers, from `deploy/cloudflare/` (`wrangler.toml`, `issuer.sdl`, the D1 migration, and `secrets.mjs`). The Node server stays the reference host. Nothing in `src/` imports a Workers-only module.
+* The signing key can be PEM text in `PRIVATE_DOCS_LOGIN_SIGNING_KEY` as well as a file path. `/jwks` also lists `PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS` during a rotation and refuses private key fields there.
+* `/healthz` checks the signing key and the state store and answers `503` when either is missing. `/health` stays.
+* `/userinfo` no longer extends an access token past its `expires_in`.
+* The example config names `dev-centr` as the GitHub App owner. `github-manifest` prints the owner, the GitHub form URL, and the callback and setup URLs, and refuses a missing owner or a plain-http public issuer.
+* The package needs Node 22.13 or later and is version 0.2.0.
+* Detail: xref:changelog-details/2026-11-25 - persistent-state-and-worker-host.adoc[Persistent sign-in state and the Worker host].
 
 == 2026-11-19
 

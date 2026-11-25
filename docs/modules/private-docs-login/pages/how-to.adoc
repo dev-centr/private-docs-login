@@ -3,8 +3,8 @@
 :page-audience: Organization administrators
 :page-usage-context: How-to on the Dev-Centr docs hub for installing the published GitHub App, pointing a documentation site at the issuer, and hosting an issuer
 :page-orig-author: Grok 4.7 on behalf of Ryan Johnson
-:page-last-author: name=Ryan Johnson; harness=Cursor; model=grok-4.7
-:page-last-edited: 2026-11-19
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
 
 ifndef::page-context-active[]
 [.page-context.page-context-lead]
@@ -143,6 +143,16 @@ This window shows the process.
 The listen line is the address.
 Ctrl+C stops it.
 
+Sign-in state (pending requests, one-time codes, and access tokens) is kept in a SQLite file when `PRIVATE_DOCS_LOGIN_STATE_PATH` names one.
+A restart then keeps sign-ins that are in progress.
+Without it, state is in memory, and the start-up output says so.
+SQLite needs Node 22.13 or later.
+Run one process per state file.
+`/healthz` answers `200` when the signing key and the state store work, and `503` when they do not.
+
+DevCentr's own issuer runs on Cloudflare Workers with D1 instead.
+That runbook is xref:deploy-cloudflare.adoc[Deploy on Cloudflare Workers].
+
 == GitHub App for an issuer you host
 
 This section is for the person hosting the issuer.
@@ -154,8 +164,10 @@ That organization does not run this command.
 private-docs-login github-manifest --config config/issuer.sdl
 ----
 
+The command prints the owner, the GitHub form URL, and the callback and setup URLs, and refuses to start when `github.owner` is missing or the issuer is not `https`.
 Open `http://127.0.0.1:8765/`.
-The form posts the manifest to `https://github.com/organizations/antora-supplemental/settings/apps/new`.
+The form posts the manifest to `https://github.com/organizations/<owner>/settings/apps/new`, where `<owner>` is `github.owner` in the config.
+The example config and the DevCentr deploy config name `dev-centr`.
 The name on that screen is Private Docs Login.
 Approve it there.
 Credentials land in gitignored `var/`.

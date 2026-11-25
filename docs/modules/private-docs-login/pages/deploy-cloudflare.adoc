@@ -1,0 +1,158 @@
+= Deploy the issuer on Cloudflare Workers
+:description: How DevCentr hosts Private Docs Login at login.devcentr.org on Cloudflare Workers with D1 state, which secrets it needs, and how to rotate them.
+:page-audience: Site operators
+:page-usage-context: Deploy runbook on the Dev-Centr docs hub for the Worker host of the issuer
+:page-orig-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
+
+ifndef::page-context-active[]
+[.page-context.page-context-lead]
+****
+Audience role:: {page-audience}
+Usage context:: {page-usage-context}
+Original author:: {page-orig-author}
+Latest contributor:: {page-last-author}
+Last updated:: {page-last-edited}
+****
+endif::[]
+
+DevCentr runs the published issuer at `https://login.devcentr.org` as a Cloudflare Worker.
+The Node server (`private-docs-login serve`) is still the reference host.
+The Worker is an optional deploy target under `deploy/cloudflare/`, and nothing in `src/` depends on it.
+
+== Why a Worker with D1
+
+The issuer core already uses Web standard `Request`, `Response`, and Web Crypto, so it runs on Workers without a Node shim.
+A Worker has no single machine to keep running, and DevCentr's DNS and Cloudflare Access are in the same account.
+
+Sign-in state is three short-lived kinds of row: pending authorize requests (10 minutes), one-time authorization codes (5 minutes), and access tokens (10 minutes).
+D1 holds them.
+D1 deletes and returns a row in one statement (`DELETE ... RETURNING`), so a code cannot be redeemed twice.
+Workers KV was not chosen: it is eventually consistent, it cannot take a row atomically, and its shortest TTL is 60 seconds.
+Durable Objects would also work, with more code that only runs on Workers.
+
+The same table backs the Node host in a SQLite file (`PRIVATE_DOCS_LOGIN_STATE_PATH`, `node:sqlite`, Node 22.13 or later).
+Tests use the in-memory adapter.
+Expired rows are swept on the next write, so there is no cron trigger.
+
+The signing key is a Worker secret, not generated at startup, so `/jwks` stays the same across deploys and isolates.
+
+== Files
+
+`deploy/cloudflare/wrangler.toml`:: Worker name, the `login.devcentr.org` custom domain, the D1 binding `PRIVATE_DOCS_LOGIN_STATE`, and the account that holds the devcentr.org zone. No secrets.
+`deploy/cloudflare/issuer.sdl`:: The Worker's config: issuer `https://login.devcentr.org`, GitHub App owner `dev-centr`, and the Cloudflare Access client for the `amdphreak` team. Every secret is an environment name.
+`deploy/cloudflare/migrations/`:: The D1 table.
+`deploy/cloudflare/secrets.mjs`:: Builds `var/worker-secrets.json` for `wrangler secret bulk` from the gitignored `var/` folder. It prints names only.
+
+== Secrets
+
+[cols="2,3,3",options="header"]
+|===
+| Worker secret | Comes from | Kept in
+
+| `PRIVATE_DOCS_LOGIN_SIGNING_KEY`
+| `var/signing.pem`. `secrets.mjs` creates it when missing (RSA 2048, PKCS#8 PEM).
+| Bitwarden, as an attachment on the Private Docs Login item. Then delete `var/signing.pem` or keep it only on the operator's machine.
+
+| `PRIVATE_DOCS_LOGIN_GITHUB_APP_ID`, `PRIVATE_DOCS_LOGIN_GITHUB_CLIENT_ID`, `PRIVATE_DOCS_LOGIN_GITHUB_CLIENT_SECRET`
+| `var/github-app.json`, written by `github-manifest` when the app is approved.
+| Bitwarden. `var/github-app.pem` (the app's own private key) is not used by the issuer; keep it in Bitwarden only.
+
+| `PRIVATE_DOCS_LOGIN_CLIENT_CLOUDFLARE_ACCESS`
+| `var/cloudflare-access-client-secret`. `secrets.mjs` creates it when missing.
+| Bitwarden. The same value goes into the Cloudflare Access OpenID Connect identity provider as its client secret.
+
+| `PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS`
+| The old `/jwks` body, during a signing-key rotation only.
+| Not secret. Delete it after the rotation window.
+|===
+
+== First deploy
+
+Run these from the repository root on the operator's machine, logged in with `npx wrangler@4 login`.
+
+. Register the GitHub App under dev-centr (see <<github-app>>). This writes `var/github-app.json`.
+. Create the D1 database, paste the printed `database_id` into `deploy/cloudflare/wrangler.toml`, and commit that change. The id is not a secret.
++
+[source,shell]
+----
+npm run cf:d1:create
+npm run cf:d1:migrate
+----
+. Upload the secrets. This writes `var/worker-secrets.json`, sends it with `wrangler secret bulk`, and deletes it.
++
+[source,shell]
+----
+npm run cf:secrets
+----
+. Deploy. The custom domain route creates the proxied DNS record for `login.devcentr.org` and its certificate. Do not create that record by hand.
++
+[source,shell]
+----
+npm run cf:check
+npm run cf:deploy
+----
+. Check health.
++
+[source,shell]
+----
+npm run healthz
+----
++
+`/healthz` answers `200` with `{"ok":true,"storage":"d1","state":"ok",...}`.
+It answers `503` when the signing key, a secret, or the D1 table is missing.
+It names no secret, client, or key material.
+`/health` is the older liveness answer and stays.
+
+Then give the Cloudflare Access identity provider these values:
+
+* Auth URL `https://login.devcentr.org/authorize`
+* Token URL `https://login.devcentr.org/token`
+* Certificate URL `https://login.devcentr.org/jwks`
+* Client id `cloudflare-access`, client secret from `var/cloudflare-access-client-secret`
+* Scope `openid`, groups claim `groups`, values like `github:github.com:dev-centr`
+
+[[github-app]]
+== Register the GitHub App under dev-centr
+
+[source,shell]
+----
+node bin/private-docs-login.mjs github-manifest --config deploy/cloudflare/issuer.sdl
+----
+
+The command prints the owner, the GitHub form URL, and the callback and setup URLs before it starts:
+
+* GitHub form `https://github.com/organizations/dev-centr/settings/apps/new`
+* Callback URL `https://login.devcentr.org/github/callback`
+* Setup URL `https://login.devcentr.org/github/setup`
+* Manifest return `http://127.0.0.1:8765/setup/github/callback`
+
+Open `http://127.0.0.1:8765/` on the same machine and choose Continue to GitHub.
+The one manual step is on GitHub: an owner of dev-centr reviews the app named Private Docs Login and chooses Create GitHub App for dev-centr.
+GitHub returns to the local command, which writes `var/github-app.json` and `var/github-app.pem` and prints neither secret.
+GitHub's manifest code expires after one hour, so finish in one sitting.
+
+The app is public, asks for Organization members read only, and has no webhook.
+Organizations opt in at `https://github.com/apps/private-docs-login/installations/new`.
+
+== Rotate secrets
+
+Signing key::
+. Save the current public keys: `curl.exe -s https://login.devcentr.org/jwks -o var/previous-jwks.json` (plain `curl` on Linux and macOS).
+. Upload them as `PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS` from `deploy/cloudflare`: `npx wrangler@4 secret put PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS` with the file piped in. The value is public keys only; the issuer refuses a value with private key fields.
+. Move the old `var/signing.pem` into Bitwarden as the retired key and delete it from `var/`.
+. Change `kid` in `deploy/cloudflare/issuer.sdl` (for example `private-docs-login-2`) and commit it.
+. Run `npm run cf:secrets` (it creates the new key) and `npm run cf:deploy`.
+. After at least 24 hours, delete the previous keys: `npx wrangler@4 secret delete PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS`. Tokens live 10 minutes; the extra time covers relying parties that cache `/jwks`.
+
+GitHub client secret::
+Generate a new client secret on the app's GitHub settings page, put it in `var/github-app.json` and Bitwarden, run `npm run cf:secrets`, then delete the old secret on GitHub.
+
+Cloudflare Access client secret::
+Delete `var/cloudflare-access-client-secret`, run `npm run cf:secrets`, and set the new value on the Access identity provider straight away. Sign-ins fail between the two steps.
+
+== Logs
+
+`npm run cf:tail` streams the Worker's logs.
+The issuer logs error messages only, never request bodies or tokens.

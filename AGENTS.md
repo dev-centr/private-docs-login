@@ -1,6 +1,6 @@
 # Agent notes
 
-Private Docs Login is a login provider for private documentation sites. It is an OpenID Connect issuer. The reference host is a Node HTTP server. Do not add a Cloudflare Worker, `wrangler.toml`, or a Workers-only import as a requirement.
+Private Docs Login is a login provider for private documentation sites. It is an OpenID Connect issuer. The reference host is a Node HTTP server. DevCentr also deploys it as a Cloudflare Worker from `deploy/cloudflare/`; that target stays optional. Code in `src/` must not import a Workers-only module or need `wrangler.toml`. Sign-in state goes through the adapters in `src/store.mjs` (memory for tests, SQLite for Node, D1 for the Worker).
 
 Config is SDL. Secrets are environment names, documented in `docs/modules/private-docs-login/pages/environment-variables.adoc`. Do not commit PEM files, client secrets, or tokens.
 

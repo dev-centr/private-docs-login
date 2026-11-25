@@ -284,10 +284,10 @@ test("GitHub manifest names the app and asks only for member read", () => {
   assert.equal(manifest.callback_urls[0], "https://login.example.com/github/callback")
   const html = manifestForm({
     webBase: "https://github.com",
-    owner: "antora-supplemental",
+    owner: "dev-centr",
     manifest,
   })
-  assert.match(html, /organizations\/antora-supplemental\/settings\/apps\/new/)
+  assert.match(html, /organizations\/dev-centr\/settings\/apps\/new/)
   assert.match(html, /Private Docs Login/)
   assert.match(html, /login provider for private documentation sites/)
 })

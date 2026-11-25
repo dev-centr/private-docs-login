@@ -21,3 +21,12 @@
 !.github/workflows/test.yml
 !changelog-details/
 !changelog-details/**
+!deploy/
+!deploy/cloudflare/
+!deploy/cloudflare/wrangler.toml
+!deploy/cloudflare/issuer.sdl
+!deploy/cloudflare/worker.mjs
+!deploy/cloudflare/worker-core.mjs
+!deploy/cloudflare/migrations/
+!deploy/cloudflare/migrations/*.sql
+!deploy/cloudflare/secrets.mjs

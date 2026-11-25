@@ -1,0 +1,42 @@
+= 2026-11-25
+:hide-page:
+:navtree-parent: changelog.adoc
+:page-audience: Maintainers and readers tracking functional history of this component
+:page-usage-context: Changelog detail for persistent sign-in state, the Cloudflare Worker host, and the dev-centr app owner
+:page-orig-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
+
+== Persistent sign-in state and the Worker host
+
+Before this change, pending sign-ins, authorization codes, and access tokens lived in the process's memory.
+A restart or a second instance dropped sign-ins in progress.
+
+`src/store.mjs` now has one async interface (`put`, `take`, `peek`, `ping`) and three adapters.
+The memory adapter is for tests.
+The SQLite adapter uses `node:sqlite` on the Node host when `PRIVATE_DOCS_LOGIN_STATE_PATH` is set.
+The D1 adapter is for the Cloudflare Worker.
+SQLite and D1 share one table, `sign_in_state`, and one set of SQL statements.
+`take` is a single `DELETE ... RETURNING`, so two token requests cannot both redeem one code.
+Each write first deletes expired rows, so there is no scheduled cleanup.
+
+Workers KV was not used, because it is eventually consistent, has no atomic take, and has a 60-second minimum TTL.
+Durable Objects would also work, with more Workers-only code.
+
+`src/runtime.mjs` builds the runtime config without the filesystem.
+The Node host and the Worker build the issuer the same way through `src/app.mjs`.
+The signing key can be PEM text in an environment value (`signing-key.pem-env`), which is how the Worker receives it as a secret.
+The public JWK is derived with Web Crypto on both hosts.
+Because the key is supplied rather than generated at startup, `/jwks` is stable across deploys.
+`signing-key.previous-jwks-env` keeps the old public key in `/jwks` during a rotation.
+
+`deploy/cloudflare/` is DevCentr's deploy target for `https://login.devcentr.org`.
+The custom domain route creates the DNS record on deploy.
+`secrets.mjs` builds the `wrangler secret bulk` file from the gitignored `var/` folder, creates a missing signing key or Access client secret, and prints names only.
+
+`/healthz` reports the storage kind and whether a state round trip worked, and answers `503` otherwise.
+It names no secret.
+
+The example config and the deploy config name `dev-centr` as the GitHub App owner.
+`github-manifest` prints where the manifest goes and which callback and setup URLs it registers, before it starts.
+The GitLab example group is unchanged.

@@ -1,0 +1,32 @@
+// Private Docs Login as DevCentr hosts it: a Cloudflare Worker at login.devcentr.org.
+// No secrets here. Each *-env name is a Worker secret set with `wrangler secret put`.
+// The Node host keeps using config/issuer.sdl; this file is only bundled into the Worker.
+
+issuer "https://login.devcentr.org"
+groups-claim "groups"
+
+// Worker secret PRIVATE_DOCS_LOGIN_SIGNING_KEY holds the PKCS#8 PEM text.
+// PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS is a plain var, set only during a key rotation.
+signing-key {
+  pem-env "PRIVATE_DOCS_LOGIN_SIGNING_KEY"
+  previous-jwks-env "PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS"
+  kid "private-docs-login-1"
+}
+
+// GitHub App named Private Docs Login, owned by the dev-centr organization.
+github {
+  web "https://github.com"
+  api "https://api.github.com"
+  owner "dev-centr"
+  slug "private-docs-login"
+  app-id-env "PRIVATE_DOCS_LOGIN_GITHUB_APP_ID"
+  client-id-env "PRIVATE_DOCS_LOGIN_GITHUB_CLIENT_ID"
+  client-secret-env "PRIVATE_DOCS_LOGIN_GITHUB_CLIENT_SECRET"
+}
+
+// The Cloudflare Access identity provider for DevCentr team docs.
+client {
+  id "cloudflare-access"
+  secret-env "PRIVATE_DOCS_LOGIN_CLIENT_CLOUDFLARE_ACCESS"
+  redirect "https://amdphreak.cloudflareaccess.com/cdn-cgi/access/callback"
+}

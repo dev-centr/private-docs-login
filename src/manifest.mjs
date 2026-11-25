@@ -3,8 +3,34 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { githubManifest } from "./github.mjs"
 import { escapeHtml } from "./html.mjs"
 
+// Checks the config before anything is sent to GitHub, and returns the URLs the app will be created with.
+export function manifestPlan({ webBase, owner, issuer, setupOrigin }) {
+  if (!owner || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(owner)) {
+    throw new Error("Set github.owner in the config to the organization that will own the app, for example dev-centr.")
+  }
+  const root = String(issuer || "").replace(/\/$/, "")
+  const parsed = new URL(root)
+  const local = parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost"
+  if (parsed.protocol !== "https:" && !local) {
+    throw new Error(`The issuer ${root} is not https. GitHub would send members to a plain-http callback.`)
+  }
+  const manifest = githubManifest({ issuer: root, setupOrigin })
+  return {
+    owner,
+    action: manifestAction(webBase, owner),
+    manifest,
+    callbackUrl: manifest.callback_urls[0],
+    setupUrl: manifest.setup_url,
+    redirectUrl: manifest.redirect_url,
+  }
+}
+
+export function manifestAction(webBase, owner) {
+  return `${(webBase || "https://github.com").replace(/\/$/, "")}/organizations/${encodeURIComponent(owner)}/settings/apps/new`
+}
+
 export function manifestForm({ webBase, owner, manifest }) {
-  const action = `${webBase.replace(/\/$/, "")}/organizations/${owner}/settings/apps/new`
+  const action = manifestAction(webBase, owner)
   const json = JSON.stringify(JSON.stringify(manifest)).replace(/</g, "\\u003c")
   return `<!DOCTYPE html>
 <html lang="en">
@@ -29,7 +55,7 @@ document.getElementById("manifest").value = ${json}
 
 export function startManifestServer({ host, port, webBase, owner, issuer, fetchImpl, onCredentials }) {
   const origin = `http://${host}:${port}`
-  const manifest = githubManifest({ issuer, setupOrigin: origin })
+  const { manifest } = manifestPlan({ webBase, owner, issuer, setupOrigin: origin })
   const server = createServer(async (req, res) => {
     const url = new URL(req.url || "/", origin)
     if (req.method === "GET" && url.pathname === "/") {

@@ -5,7 +5,7 @@ import { dirname, join } from "node:path"
 import { describeConfig, readConfigFile } from "../src/config.mjs"
 import { asList } from "../src/sdl.mjs"
 import { listenIssuer } from "../src/serve.mjs"
-import { startManifestServer, writeGithubCredentials } from "../src/manifest.mjs"
+import { manifestPlan, startManifestServer, writeGithubCredentials } from "../src/manifest.mjs"
 import { gitlabSetupText } from "../src/gitlab-setup.mjs"
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version
@@ -24,6 +24,7 @@ Start the issuer in this window:
 
 Create the GitHub App (one approval in the browser):
   private-docs-login github-manifest --config config/issuer.sdl
+  The DevCentr-hosted issuer uses --config deploy/cloudflare/issuer.sdl (owner dev-centr).
 
 Print the GitLab application steps:
   private-docs-login gitlab-setup --config config/issuer.sdl
@@ -57,6 +58,9 @@ if (command === "serve") {
   console.log(`Listen ${started.runtime.listenHost}:${address.port}`)
   console.log(`Issuer ${started.runtime.issuer}`)
   console.log(`Groups claim ${started.runtime.groupsClaim}`)
+  console.log(started.storage === "sqlite"
+    ? `State SQLite ${started.runtime.statePath}`
+    : "State in memory. A restart drops sign-ins in progress. Set PRIVATE_DOCS_LOGIN_STATE_PATH to keep them.")
   console.log(`Ctrl+C stops this process.`)
 } else if (command === "github-manifest") {
   const raw = readConfigFile(configPath)
@@ -64,6 +68,18 @@ if (command === "serve") {
   const github = raw.github || {}
   const host = flag(args, "--listen-host", "127.0.0.1")
   const port = Number(flag(args, "--listen-port", "8765"))
+  let plan
+  try {
+    plan = manifestPlan({ webBase: github.web, owner: github.owner, issuer: described.issuer, setupOrigin: `http://${host}:${port}` })
+  } catch (error) {
+    console.error(error.message)
+    process.exit(1)
+  }
+  console.log(`Owner ${plan.owner}`)
+  console.log(`GitHub form ${plan.action}`)
+  console.log(`Callback URL ${plan.callbackUrl}`)
+  console.log(`Setup URL ${plan.setupUrl}`)
+  console.log(`Manifest return ${plan.redirectUrl}`)
   const server = await startManifestServer({
     host,
     port,
