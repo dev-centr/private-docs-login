@@ -17,12 +17,12 @@ type = "Text"
 globs = ["**/*.sdl"]
 fallthrough = true
 
-# Create once with: npx wrangler@4 d1 create private-docs-login-state
+# Created 2026-11-25. To recreate: npx wrangler@4 d1 create private-docs-login-state,
 # then paste the printed database_id here.
 [[d1_databases]]
 binding = "PRIVATE_DOCS_LOGIN_STATE"
 database_name = "private-docs-login-state"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "95c7d848-b855-4982-9d62-2c40801cd6a6"
 migrations_dir = "migrations"
 
 [observability]
