@@ -1,0 +1,34 @@
+= Roadmap
+:description: Later work for Private Docs Login that does not block the DevCentr issuer.
+:page-audience: Maintainers
+:page-usage-context: Roadmap on the Dev-Centr docs hub for work after the first deploy
+:page-orig-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
+
+ifndef::page-context-active[]
+[.page-context.page-context-lead]
+****
+Audience role:: {page-audience}
+Usage context:: {page-usage-context}
+Original author:: {page-orig-author}
+Latest contributor:: {page-last-author}
+Last updated:: {page-last-edited}
+****
+endif::[]
+
+None of this blocks registering the app or deploying `login.devcentr.org`.
+Organizations can install a public GitHub App from `https://github.com/apps/private-docs-login` without a Marketplace listing.
+
+== GitHub Marketplace listing
+
+A Marketplace listing needs more than the app has today:
+
+* A privacy policy URL. It has to say what the issuer reads (organization installations and the verified primary email), what it stores (short-lived sign-in rows in D1, minutes long), and what it sends to a documentation site (the ID token claims).
+* Purchase webhooks. Marketplace sends `marketplace_purchase` events, so the app needs a webhook URL and secret, and the issuer needs an endpoint that verifies the signature, even for a free plan. The app is registered today with no webhook.
+* Listing text, a logo, a support URL, and a terms of service URL.
+
+== GitLab owner group
+
+The group `dev-centr` does not exist on gitlab.com yet.
+GitLab sign-in for the DevCentr issuer waits for that group and its application.

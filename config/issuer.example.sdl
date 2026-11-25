@@ -40,7 +40,7 @@ github {
 gitlab {
   instance {
     url "https://gitlab.com"
-    owner-group "antora-supplemental"
+    owner-group "dev-centr"
     opt-in-username "private-docs-login"
     client-id-env "PRIVATE_DOCS_LOGIN_GITLAB_CLIENT_ID"
     client-secret-env "PRIVATE_DOCS_LOGIN_GITLAB_CLIENT_SECRET"

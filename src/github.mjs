@@ -33,6 +33,18 @@ export async function listInstalledOrganizations({ fetchImpl, apiBase, accessTok
   return logins
 }
 
+// The primary address, only when GitHub has verified it. Needs the app's Email addresses (read) permission.
+export function primaryVerifiedEmail(rows) {
+  const row = (Array.isArray(rows) ? rows : []).find((item) => item && item.primary && item.verified && item.email)
+  return row ? String(row.email) : ""
+}
+
+export async function fetchPrimaryEmail({ fetchImpl, apiBase, accessToken }) {
+  const res = await fetchImpl(`${apiBase.replace(/\/$/, "")}/user/emails?per_page=100`, { headers: apiHeaders(accessToken) })
+  if (!res.ok) throw new Error(`GitHub emails responded ${res.status}`)
+  return primaryVerifiedEmail(await res.json())
+}
+
 function nextLink(header) {
   if (!header) return ""
   for (const part of header.split(",")) {
@@ -79,6 +91,7 @@ export function createGithubForge(options) {
       const userRes = await options.fetchImpl(`${api}/user`, { headers: apiHeaders(token.access_token) })
       if (!userRes.ok) throw new Error(`GitHub user responded ${userRes.status}`)
       const user = await userRes.json()
+      const email = await fetchPrimaryEmail({ fetchImpl: options.fetchImpl, apiBase: api, accessToken: token.access_token })
       const groups = await listInstalledOrganizations({
         fetchImpl: options.fetchImpl,
         apiBase: api,
@@ -88,6 +101,8 @@ export function createGithubForge(options) {
       return {
         subject: String(user.id),
         username: user.login || "",
+        email,
+        emailVerified: Boolean(email),
         groups,
       }
     },
@@ -105,6 +120,8 @@ export function githubManifest({ issuer, setupOrigin }) {
     callback_urls: [`${root}/github/callback`],
     setup_url: `${root}/github/setup`,
     public: true,
-    default_permissions: { members: "read" },
+    // members: which organizations installed the app. emails: the verified primary address that
+    // Cloudflare Access and other relying parties use to name the reader.
+    default_permissions: { members: "read", emails: "read" },
   }
 }

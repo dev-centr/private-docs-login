@@ -45,8 +45,11 @@ GitHub Marketplace is the public catalog for that app when GitHub lists it.
 The same opt-in is the organization's install of the app.
 You do not clone this repository, and you do not run `private-docs-login`, to install it.
 
-Organization members, read, is the only permission.
+The app asks for two read permissions: Organization members, and the user's Email addresses.
+Members read tells the issuer which organizations installed the app.
+Email addresses read lets the issuer send the reader's verified primary address, because Cloudflare Access names readers by email.
 An organization that has not installed the app is not in the token.
+A reader without a verified primary address is refused with a page that says where to verify it.
 
 GitHub's install screen shows the app name, the owner, the permissions, and a short description.
 It does not show this repository.
@@ -173,8 +176,11 @@ Approve it there.
 Credentials land in gitignored `var/`.
 The command does not print the client secret or the private key.
 
-Organization members, read, is the only permission.
+The app asks for two read permissions: Organization members, and the user's Email addresses.
+Members read tells the issuer which organizations installed the app.
+Email addresses read lets the issuer send the reader's verified primary address, because Cloudflare Access names readers by email.
 An organization that has not installed the app is not in the token.
+A reader without a verified primary address is refused with a page that says where to verify it.
 
 == GitLab application for an issuer you host
 
@@ -190,8 +196,10 @@ private-docs-login gitlab-setup --config config/issuer.sdl
 GitLab has no GitHub App installation.
 The application is group-owned, named Private Docs Login, scope `read_api`.
 The instance URL is the `gitlab.instance.url` value.
-On gitlab.com the group `antora-supplemental` is not there yet.
-After it exists, the settings page is `https://gitlab.com/groups/antora-supplemental/-/settings/applications`.
+The example and DevCentr owner group is `dev-centr`.
+On gitlab.com the group `dev-centr` is not there yet.
+After it exists, the settings page is `https://gitlab.com/groups/dev-centr/-/settings/applications`.
+The issuer reads the account's confirmed primary email from `/api/v4/user` with the same `read_api` scope.
 Redirect URI is `{issuer}/gitlab/callback`.
 
 [[relying-parties]]
@@ -204,8 +212,10 @@ An Antora site behind Cloudflare Access, or another OpenID Connect client, is on
 * Auth URL `{issuer}/authorize`
 * Token URL `{issuer}/token`
 * Certificate URL `{issuer}/jwks`
-* Scope `openid`
+* Scope `openid` (`email` and `profile` are accepted too)
 
+The ID token and `/userinfo` carry `email` and `email_verified` (always `true`), from the verified primary address on GitHub or the confirmed primary address on GitLab.
+No other address on the account is sent.
 The groups claim uses `groups-claim` (default `groups`).
 Values look like `github:github.com:example-org` and `gitlab:gitlab.com:example-group`.
 The `forge` claim is `github` or `gitlab`.

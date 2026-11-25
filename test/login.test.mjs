@@ -86,6 +86,12 @@ function githubFetch(installations) {
     const u = String(url)
     if (u.includes("/login/oauth/access_token")) return Response.json({ access_token: "ght" })
     if (u.includes("/user/installations")) return Response.json({ installations })
+    if (u.includes("/user/emails")) {
+      return Response.json([
+        { email: "ada@users.noreply.github.com", primary: false, verified: true },
+        { email: "ada@example.com", primary: true, verified: true },
+      ])
+    }
     if (u.endsWith("/user")) return Response.json({ id: 7, login: "ada" })
     return new Response("missing", { status: 404 })
   }
@@ -100,7 +106,7 @@ function gitlabFetch(groups, membersById) {
       return Response.json(membersById[id] || [])
     }
     if (u.includes("/api/v4/groups?")) return Response.json(groups)
-    if (u.includes("/api/v4/user")) return Response.json({ id: 9, username: "ada" })
+    if (u.includes("/api/v4/user")) return Response.json({ id: 9, username: "ada", email: "ada@example.com", confirmed_at: "2026-01-01T00:00:00Z" })
     return new Response("missing", { status: 404 })
   }
 }
@@ -269,7 +275,7 @@ test("zero opted-in GitLab groups is a refusal", async () => {
   assert.match(html, /email address does not/)
 })
 
-test("GitHub manifest names the app and asks only for member read", () => {
+test("GitHub manifest names the app and asks for member read and email read", () => {
   const manifest = githubManifest({
     issuer: "https://login.example.com",
     setupOrigin: "http://127.0.0.1:8765",
@@ -278,9 +284,8 @@ test("GitHub manifest names the app and asks only for member read", () => {
   assert.match(manifest.description, /A login provider for private documentation sites that use OpenID Connect/)
   assert.match(manifest.description, /GitHub and GitLab org members sign in through their org's installation/)
   assert.ok(manifest.description.length <= 350)
-  assert.deepEqual(manifest.default_permissions, { members: "read" })
+  assert.deepEqual(manifest.default_permissions, { members: "read", emails: "read" })
   assert.equal(JSON.stringify(manifest).includes("contents"), false)
-  assert.equal(JSON.stringify(manifest).includes("email"), false)
   assert.equal(manifest.callback_urls[0], "https://login.example.com/github/callback")
   const html = manifestForm({
     webBase: "https://github.com",
@@ -347,17 +352,17 @@ test("GitLab setup names the app, the scope, and the opt-in user", async () => {
   const text = await gitlabSetupText({
     instance: {
       instanceUrl: "https://gitlab.example.com",
-      ownerGroup: "antora-supplemental",
+      ownerGroup: "dev-centr",
       optInUsername: "private-docs-login",
     },
     issuer: "https://login.example.com",
     fetchImpl: async () => new Response("missing", { status: 404 }),
   })
-  assert.match(text, /https:\/\/gitlab.example.com\/groups\/antora-supplemental\/-\/settings\/applications/)
+  assert.match(text, /https:\/\/gitlab.example.com\/groups\/dev-centr\/-\/settings\/applications/)
   assert.match(text, /Name: Private Docs Login/)
   assert.match(text, /read_api/)
   assert.match(text, /private-docs-login/)
-  assert.match(text, /No GitLab group named antora-supplemental/)
+  assert.match(text, /No GitLab group named dev-centr/)
 })
 
 test("the old environment prefix does not satisfy PRIVATE_DOCS_LOGIN_ names", async () => {

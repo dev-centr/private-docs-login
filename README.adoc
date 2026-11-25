@@ -118,6 +118,9 @@ One published app can gate many organizations' private documentation sites.
 Each site asks for its own organization.
 Members of one organization are not admitted to another organization's documentation.
 
+The token carries the reader's verified primary email (`email`, `email_verified`), because Cloudflare Access names readers by email.
+A reader without one is refused with a page that says where to verify it.
+
 The GitHub App has one callback, on the issuer.
 Customer documentation URLs are not entered in the GitHub App settings.
 

@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { createIssuer } from "../src/issuer.mjs"
-import { createGithubForge, githubManifest } from "../src/github.mjs"
+import { createGithubForge, githubManifest, primaryVerifiedEmail } from "../src/github.mjs"
+import { createGitlabForge } from "../src/gitlab.mjs"
 import { buildRuntime, describeConfig } from "../src/runtime.mjs"
 import { parseSdl } from "../src/sdl.mjs"
 import { manifestPlan } from "../src/manifest.mjs"
@@ -45,13 +46,16 @@ function fakeD1() {
   }
 }
 
-function githubFetch() {
+const VERIFIED = [{ email: "ada@example.com", primary: true, verified: true }]
+
+function githubFetch(emails = VERIFIED) {
   return async (url) => {
     const u = String(url)
     if (u.includes("/login/oauth/access_token")) return Response.json({ access_token: "ght" })
     if (u.includes("/user/installations")) {
       return Response.json({ installations: [{ app_id: 42, account: { login: "dev-centr", type: "Organization" } }] })
     }
+    if (u.includes("/user/emails")) return Response.json(emails)
     if (u.endsWith("/user")) return Response.json({ id: 7, login: "ada" })
     return new Response("missing", { status: 404 })
   }
@@ -67,14 +71,14 @@ async function material(kid = "test") {
   return { privateKey: pair.privateKey, publicJwk: { kty: "RSA", n: publicJwk.n, e: publicJwk.e, alg: "RS256", use: "sig", kid }, kid }
 }
 
-function issuerWith(stores, keys, now) {
+function issuerWith(stores, keys, now, emails) {
   return createIssuer({
     ...keys,
     issuer: "https://login.example.com",
     clients: [{ id: "rp", secret: "secret", redirectUris: ["https://rp.example/callback"] }],
     github: createGithubForge({
       webBase: "https://github.com", apiBase: "https://api.github.com", slug: "private-docs-login",
-      appId: "42", clientId: "cid", clientSecret: "cs", fetchImpl: githubFetch(),
+      appId: "42", clientId: "cid", clientSecret: "cs", fetchImpl: githubFetch(emails),
     }),
     stores,
     now,
@@ -292,4 +296,56 @@ test("the Worker secrets file is built from var/ and creates missing keys withou
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+function claimsOf(jwt) {
+  return JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString("utf8"))
+}
+
+test("the ID token and userinfo carry the verified primary email", async () => {
+  const app = issuerWith(memoryStores(), await material(), undefined, [
+    { email: "old@example.com", primary: false, verified: true },
+    { email: "ada@example.com", primary: true, verified: true },
+  ])
+  const code = await finishSignIn(app, await startSignIn(app))
+  const body = await (await app.handle(tokenRequest(code))).json()
+  const claims = claimsOf(body.id_token)
+  assert.equal(claims.email, "ada@example.com")
+  assert.equal(claims.email_verified, true)
+  const info = await (await app.handle(new Request("https://login.example.com/userinfo", {
+    headers: { authorization: `Bearer ${body.access_token}` },
+  }))).json()
+  assert.equal(info.email, "ada@example.com")
+  assert.equal(info.email_verified, true)
+  const doc = await (await app.handle(new Request("https://login.example.com/.well-known/openid-configuration"))).json()
+  assert.ok(doc.claims_supported.includes("email") && doc.claims_supported.includes("email_verified"))
+  assert.ok(doc.scopes_supported.includes("email"))
+})
+
+test("a GitHub account without a verified primary email is refused with a clear page", async () => {
+  assert.equal(primaryVerifiedEmail([{ email: "a@example.com", primary: true, verified: false }, { email: "b@example.com", primary: false, verified: true }]), "")
+  const app = issuerWith(memoryStores(), await material(), undefined, [{ email: "ada@example.com", primary: true, verified: false }])
+  const back = await app.handle(new Request(`https://login.example.com/github/callback?code=abc&state=${await startSignIn(app)}`))
+  assert.equal(back.status, 403)
+  const html = await back.text()
+  assert.match(html, /No verified primary email/)
+  assert.match(html, /Settings, Emails/)
+  assert.doesNotMatch(html, /ada@example\.com/)
+})
+
+test("a GitLab account whose primary email is not confirmed is refused", async () => {
+  const forge = createGitlabForge({
+    instanceUrl: "https://gitlab.example.com", optInUsername: "private-docs-login", clientId: "g", clientSecret: "s",
+    fetchImpl: async (url) => {
+      const u = String(url)
+      if (u.includes("/oauth/token")) return Response.json({ access_token: "glt" })
+      if (u.includes("/members/all")) return Response.json([{ username: "private-docs-login" }])
+      if (u.includes("/api/v4/groups?")) return Response.json([{ id: 1, full_path: "dev-centr" }])
+      if (u.includes("/api/v4/user")) return Response.json({ id: 9, username: "ada", email: "ada@example.com", confirmed_at: null })
+      return new Response("missing", { status: 404 })
+    },
+  })
+  const login = await forge.complete({ code: "c", redirectUri: "https://login.example.com/gitlab/callback" })
+  assert.equal(login.email, "")
+  assert.equal(login.emailVerified, false)
 })

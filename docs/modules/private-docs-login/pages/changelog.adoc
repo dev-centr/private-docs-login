@@ -27,8 +27,10 @@ endif::[]
 * The signing key can be PEM text in `PRIVATE_DOCS_LOGIN_SIGNING_KEY` as well as a file path. `/jwks` also lists `PRIVATE_DOCS_LOGIN_PREVIOUS_JWKS` during a rotation and refuses private key fields there.
 * `/healthz` checks the signing key and the state store and answers `503` when either is missing. `/health` stays.
 * `/userinfo` no longer extends an access token past its `expires_in`.
-* The example config names `dev-centr` as the GitHub App owner. `github-manifest` prints the owner, the GitHub form URL, and the callback and setup URLs, and refuses a missing owner or a plain-http public issuer.
+* The ID token and `/userinfo` carry `email` and `email_verified` from the verified primary address (GitHub `/user/emails`, GitLab confirmed `/api/v4/user` email). The manifest asks for Email addresses read as well as Organization members read. A reader without a verified primary address is refused with a page that says where to verify it. Discovery lists the `email` and `profile` scopes.
+* The example config names `dev-centr` as the GitHub App owner and the GitLab owner group. `github-manifest` prints the owner, the GitHub form URL, and the callback and setup URLs, and refuses a missing owner or a plain-http public issuer.
 * The package needs Node 22.13 or later and is version 0.2.0.
+* xref:roadmap.adoc[Roadmap] notes that a Marketplace listing later needs a privacy policy URL and purchase webhooks.
 * Detail: xref:changelog-details/2026-11-25 - persistent-state-and-worker-host.adoc[Persistent sign-in state and the Worker host].
 
 == 2026-11-19

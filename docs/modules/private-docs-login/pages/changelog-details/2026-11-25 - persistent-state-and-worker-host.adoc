@@ -37,6 +37,18 @@ The custom domain route creates the DNS record on deploy.
 `/healthz` reports the storage kind and whether a state round trip worked, and answers `503` otherwise.
 It names no secret.
 
-The example config and the deploy config name `dev-centr` as the GitHub App owner.
+== Email claim
+
+Cloudflare Access names a reader by email, and the token had none.
+The GitHub App manifest now asks for Email addresses read next to Organization members read.
+On GitHub the issuer reads `/user/emails` and sends the address marked primary and verified.
+On GitLab it sends the account email when `confirmed_at` is set.
+The ID token and `/userinfo` carry `email` and `email_verified`.
+A reader without a verified primary address gets a 403 page that says where to verify it, and no code is issued.
+No other address on the account is sent.
+
+== Owner and roadmap
+
+The example config and the deploy config name `dev-centr` as the GitHub App owner, and the example GitLab owner group is `dev-centr`.
 `github-manifest` prints where the manifest goes and which callback and setup URLs it registers, before it starts.
-The GitLab example group is unchanged.
+The roadmap page records that a Marketplace listing needs a privacy policy URL and purchase webhooks later.

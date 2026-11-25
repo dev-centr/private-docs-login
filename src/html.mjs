@@ -53,6 +53,16 @@ export function refusalPage({ forge, installUrl, optInUsername, instanceUrl }) {
 ${link}`)
 }
 
+export function noVerifiedEmailPage({ forge, instanceUrl }) {
+  const where = forge === "gitlab"
+    ? `GitLab${instanceUrl ? ` (${escapeHtml(instanceUrl)})` : ""}: User settings, Emails. Confirm the primary address.`
+    : "GitHub: Settings, Emails. Verify the address marked Primary."
+  return htmlResponse(403, "No verified primary email", `
+<p>Private Docs Login could not sign you in. Your account has no verified primary email address, and the documentation site identifies readers by email.</p>
+<p>Fix it in ${where} Then sign in again from the documentation site.</p>
+<p>Only the verified primary address is sent. Other addresses on the account are not.</p>`)
+}
+
 function hiddenFields(hidden) {
   return Object.entries(hidden)
     .filter(([, v]) => v != null && v !== "")

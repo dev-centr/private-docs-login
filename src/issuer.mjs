@@ -1,5 +1,5 @@
 import { hostOf, pkceS256, randomId, secretsMatch, signJwt } from "./codec.mjs"
-import { badRedirectPage, chooserPage, connectAcceptancePage, forgeErrorPage, installSetupPage, refusalPage } from "./html.mjs"
+import { badRedirectPage, chooserPage, connectAcceptancePage, forgeErrorPage, installSetupPage, noVerifiedEmailPage, refusalPage } from "./html.mjs"
 import { memoryStore } from "./store.mjs"
 
 const REQUEST_TTL = 10 * 60 * 1000
@@ -126,6 +126,10 @@ export function createIssuer(options) {
         instanceUrl: provider.instanceUrl,
       })
     }
+    // Cloudflare Access names readers by email, so a sign-in without a verified primary address stops here.
+    if (!login.email || login.emailVerified !== true) {
+      return noVerifiedEmailPage({ forge: provider.id, instanceUrl: provider.instanceUrl })
+    }
     const prefix = provider.id === "github" ? "github" : "gitlab"
     const groups = names.map((name) => `${prefix}:${provider.host}:${name}`)
     const authCode = randomId()
@@ -133,6 +137,7 @@ export function createIssuer(options) {
       ...pending,
       subject: `${prefix}:${provider.host}:${login.subject}`,
       username: login.username,
+      email: login.email,
       groups,
       forge: provider.id,
     }, CODE_TTL)
@@ -166,6 +171,8 @@ export function createIssuer(options) {
       iat: Math.floor(issued / 1000),
       exp: Math.floor(issued / 1000) + TOKEN_TTL,
       preferred_username: record.username,
+      email: record.email,
+      email_verified: true,
       [groupsClaim]: record.groups,
       forge: record.forge,
     }
@@ -189,6 +196,8 @@ export function createIssuer(options) {
     return json({
       sub: payload.sub,
       preferred_username: payload.preferred_username,
+      email: payload.email,
+      email_verified: payload.email_verified,
       [groupsClaim]: payload[groupsClaim],
       forge: payload.forge,
     })
@@ -231,8 +240,8 @@ function discovery(issuer, groupsClaim) {
     grant_types_supported: ["authorization_code"],
     subject_types_supported: ["public"],
     id_token_signing_alg_values_supported: ["RS256"],
-    scopes_supported: ["openid"],
-    claims_supported: ["sub", "iss", "aud", "exp", "iat", "nonce", "preferred_username", groupsClaim, "forge"],
+    scopes_supported: ["openid", "email", "profile"],
+    claims_supported: ["sub", "iss", "aud", "exp", "iat", "nonce", "preferred_username", "email", "email_verified", groupsClaim, "forge"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["client_secret_post"],
   }

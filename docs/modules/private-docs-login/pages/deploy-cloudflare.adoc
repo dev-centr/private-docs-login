@@ -111,7 +111,7 @@ Then give the Cloudflare Access identity provider these values:
 * Token URL `https://login.devcentr.org/token`
 * Certificate URL `https://login.devcentr.org/jwks`
 * Client id `cloudflare-access`, client secret from `var/cloudflare-access-client-secret`
-* Scope `openid`, groups claim `groups`, values like `github:github.com:dev-centr`
+* Scope `openid email`, email claim `email`, groups claim `groups`, values like `github:github.com:dev-centr`
 
 [[github-app]]
 == Register the GitHub App under dev-centr
@@ -133,7 +133,7 @@ The one manual step is on GitHub: an owner of dev-centr reviews the app named Pr
 GitHub returns to the local command, which writes `var/github-app.json` and `var/github-app.pem` and prints neither secret.
 GitHub's manifest code expires after one hour, so finish in one sitting.
 
-The app is public, asks for Organization members read only, and has no webhook.
+The app is public, asks for Organization members read and Email addresses read, and has no webhook.
 Organizations opt in at `https://github.com/apps/private-docs-login/installations/new`.
 
 == Rotate secrets

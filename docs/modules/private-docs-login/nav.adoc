@@ -3,4 +3,5 @@
 * xref:how-to.adoc[How to host the issuer]
 * xref:deploy-cloudflare.adoc[Deploy on Cloudflare Workers]
 * xref:environment-variables.adoc[Environment variables]
+* xref:roadmap.adoc[Roadmap]
 * xref:changelog.adoc[Changelog]

@@ -78,6 +78,9 @@ export function createGitlabForge(options) {
       return {
         subject: String(user.id),
         username: user.username || "",
+        // GitLab's primary address must be confirmed before it is the account email.
+        email: user.email && user.confirmed_at ? String(user.email) : "",
+        emailVerified: Boolean(user.email && user.confirmed_at),
         groups,
       }
     },
