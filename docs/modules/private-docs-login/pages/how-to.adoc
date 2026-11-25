@@ -213,6 +213,11 @@ An Antora site behind Cloudflare Access, or another OpenID Connect client, is on
 * Token URL `{issuer}/token`
 * Certificate URL `{issuer}/jwks`
 * Scope `openid` (`email` and `profile` are accepted too)
+* Client authentication at the token URL: `client_secret_basic` (HTTP Basic) or `client_secret_post` (form fields), one per request
+
+For Basic, the client id and secret are each form-urlencoded, joined with `:`, and base64-encoded, as RFC 6749 section 2.3.1 says.
+A request that sends a Basic header and a `client_secret` field is refused with `invalid_request`, and so is a body `client_id` that differs from the Basic one.
+A failed Basic attempt answers `401 invalid_client` with a `WWW-Authenticate: Basic` challenge.
 
 The ID token and `/userinfo` carry `email` and `email_verified` (always `true`), from the verified primary address on GitHub or the confirmed primary address on GitLab.
 No other address on the account is sent.

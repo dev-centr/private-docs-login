@@ -1,0 +1,27 @@
+= 2026-11-25
+:hide-page:
+:navtree-parent: changelog.adoc
+:page-audience: Maintainers and readers tracking functional history of this component
+:page-usage-context: Changelog detail for client authentication at the token endpoint
+:page-orig-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-author: name=Ryan Johnson; harness=Grok Bot; model=unknown
+:page-last-edited: 2026-11-25
+
+== Token endpoint accepts HTTP Basic
+
+The token endpoint read the client secret only from form fields (`client_secret_post`).
+A relying party that sends HTTP Basic (`client_secret_basic`), which is the OAuth default, could not redeem a code.
+
+`/token` now reads either.
+For Basic, the header value is base64 of the form-urlencoded client id, a colon, and the form-urlencoded secret, as RFC 6749 section 2.3.1 says.
+One request uses one method.
+A Basic header together with a `client_secret` field is `400 invalid_request`.
+A body `client_id` is allowed next to Basic only when it names the same client; otherwise it is `400 invalid_request`.
+A malformed Basic header, an unknown client, or a wrong secret is `401 invalid_client` with `WWW-Authenticate: Basic realm="private-docs-login"`.
+A failed post attempt is `401 invalid_client` without that header.
+A failed client authentication does not use up the authorization code.
+
+Secrets are compared after hashing both sides with SHA-256, so the comparison takes the same time whatever the presented length.
+The older length-first comparison is gone.
+
+Discovery lists `client_secret_basic` and `client_secret_post` in `token_endpoint_auth_methods_supported`.

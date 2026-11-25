@@ -110,7 +110,8 @@ Then give the Cloudflare Access identity provider these values:
 * Auth URL `https://login.devcentr.org/authorize`
 * Token URL `https://login.devcentr.org/token`
 * Certificate URL `https://login.devcentr.org/jwks`
-* Client id `cloudflare-access`, client secret from `var/cloudflare-access-client-secret`
+* Client id `cloudflare-access`, client secret from `var/cloudflare-access-client-secret` (Bitwarden item Private Docs Login - Cloudflare Access client secret)
+* The token URL accepts the secret as HTTP Basic or as form fields, so either Access behavior works
 * Scope `openid email`, email claim `email`, groups claim `groups`, values like `github:github.com:dev-centr`
 
 [[github-app]]

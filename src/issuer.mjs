@@ -1,4 +1,4 @@
-import { hostOf, pkceS256, randomId, secretsMatch, signJwt } from "./codec.mjs"
+import { hostOf, parseBasicClient, pkceS256, randomId, secretsEqual, signJwt } from "./codec.mjs"
 import { badRedirectPage, chooserPage, connectAcceptancePage, forgeErrorPage, installSetupPage, noVerifiedEmailPage, refusalPage } from "./html.mjs"
 import { memoryStore } from "./store.mjs"
 
@@ -150,10 +150,9 @@ export function createIssuer(options) {
   async function token(request) {
     const form = new URLSearchParams(await request.text())
     if (form.get("grant_type") !== "authorization_code") return json({ error: "unsupported_grant_type" }, 400)
-    const client = findClient(options.clients, form.get("client_id"))
-    if (!client || !secretsMatch(client.secret, form.get("client_secret") || "")) {
-      return json({ error: "invalid_client" }, 401)
-    }
+    const auth = await authenticateClient(request, form)
+    if (auth.response) return auth.response
+    const client = auth.client
     const record = await codes.take(form.get("code") || "")
     if (!record || record.clientId !== client.id) return json({ error: "invalid_grant" }, 400)
     if (form.get("redirect_uri") !== record.redirectUri) return json({ error: "invalid_grant" }, 400)
@@ -186,6 +185,29 @@ export function createIssuer(options) {
       expires_in: TOKEN_TTL,
       id_token: idToken,
     })
+  }
+
+  // client_secret_basic or client_secret_post, never both in one request (RFC 6749 section 2.3).
+  async function authenticateClient(request, form) {
+    const basic = parseBasicClient(request.headers.get("authorization"))
+    const challenge = { "www-authenticate": 'Basic realm="private-docs-login", charset="UTF-8"' }
+    if (basic) {
+      if (form.has("client_secret")) {
+        return { response: json({ error: "invalid_request", error_description: "use one client authentication method" }, 400) }
+      }
+      if (basic.error) return { response: json({ error: "invalid_client" }, 401, challenge) }
+      if (form.has("client_id") && form.get("client_id") !== basic.id) {
+        return { response: json({ error: "invalid_request", error_description: "client_id does not match the Authorization header" }, 400) }
+      }
+      const client = findClient(options.clients, basic.id)
+      const ok = await secretsEqual(client ? client.secret : "", basic.secret)
+      if (!client || !ok) return { response: json({ error: "invalid_client" }, 401, challenge) }
+      return { client }
+    }
+    const client = findClient(options.clients, form.get("client_id"))
+    const ok = await secretsEqual(client ? client.secret : "", form.get("client_secret") || "")
+    if (!client || !ok) return { response: json({ error: "invalid_client" }, 401) }
+    return { client }
   }
 
   async function userinfo(request) {
@@ -243,14 +265,14 @@ function discovery(issuer, groupsClaim) {
     scopes_supported: ["openid", "email", "profile"],
     claims_supported: ["sub", "iss", "aud", "exp", "iat", "nonce", "preferred_username", "email", "email_verified", groupsClaim, "forge"],
     code_challenge_methods_supported: ["S256"],
-    token_endpoint_auth_methods_supported: ["client_secret_post"],
+    token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
   }
 }
 
-function json(body, status = 200) {
+function json(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { "content-type": "application/json", "cache-control": "no-store", ...extraHeaders },
   })
 }
 
